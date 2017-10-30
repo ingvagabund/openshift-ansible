@@ -7,3 +7,15 @@
     enabled: no
     masked: yes
   ignore_errors: true
+
+- block:
+  - name: Remove master service
+    file:
+      path: "{{ containerized_svc_dir }}/{{ openshift.common.service_type }}-master.service"
+      state: absent
+  - name: Reset master service in systemd so it does not report as not-found
+    command: >
+      reset-failed {{ openshift.common.service_type }}-master
+  when:
+  - openshift.master.cluster_method == "native"
+  - not openshift.common.is_master_system_container | bool

@@ -1,0 +1,2 @@
+---
+- include: auxiliary/force_new_v3_cluster.yml

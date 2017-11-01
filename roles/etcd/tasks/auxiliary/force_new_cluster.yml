@@ -1,4 +1,21 @@
 ---
+- name: Generate backup (to start a new cluster over it aftewards)
+  include: ../backup.yml
+  vars:
+    r_etcd_common_backup_tag: etcd-datastore-backup
+    r_etcd_common_backup_sufix_name: "{{ lookup('pipe', 'date +%Y%m%d%H%M%S') }}"
+
+# Remove the current etcd data
+- include: ../auxiliary/clean_data.yml
+# And replace them with the migrated backup
+- name: Promote migrated backup dir to the etcd data dir
+  command: >
+    cp -r {{ r_etcd_backup_dir }}/member {{ etcd_data_dir }}
+
+- name: Set etcd group for the etcd data directory
+  command: >
+    chown -R etcd:etcd "{{ etcd_data_dir }}/member"
+
 - name: Set ETCD_FORCE_NEW_CLUSTER=true on first etcd host
   lineinfile:
     line: "ETCD_FORCE_NEW_CLUSTER=true"
@@ -12,7 +29,10 @@
 
 - name: Wait for cluster to become healthy after bringing up first member
   command: >
-    etcdctl --cert-file {{ etcd_peer_cert_file }} --key-file {{ etcd_peer_key_file }} --ca-file {{ etcd_peer_ca_file }} --endpoint https://{{ etcd_peer }}:{{ etcd_client_port }} cluster-health
+    etcdctl --cert-file {{ etcd_peer_cert_file }}
+            --key-file {{ etcd_peer_key_file }}
+            --ca-file {{ etcd_peer_ca_file }}
+            --endpoint {{ etcd_peer_url_scheme }}://{{ etcd_peer }}:{{ etcd_client_port }} cluster-health
   register: l_etcd_migrate_health
   until: l_etcd_migrate_health.rc == 0
   retries: 3
@@ -29,3 +49,28 @@
   systemd:
     name: "{{ etcd_service }}"
     state: restarted
+
+- name: Get member ID of the first member
+  command: >
+    etcdctl --cert-file {{ etcd_peer_cert_file }}
+            --key-file {{ etcd_peer_key_file }}
+            --ca-file {{ etcd_peer_ca_file }}
+            -C {{ etcd_peer_url_scheme }}://{{ etcd_hostname }}:{{ etcd_client_port }}
+             member list
+  register: etcd_members_result
+
+- debug:
+    msg: "etcd_members_result: {{ etcd_members_result }}"
+
+- set_fact:
+    __etcd_first_member_id: "{{ etcd_members_result.stdout_lines[0].split(':')[0] }}"
+
+- debug:
+    msg: "First member ID: {{ __etcd_first_member_id }}"
+
+- name: Update peerURL of the first member (set to localhost when forcing new cluster)
+  command: >
+    etcdctl --cert-file {{ etcd_peer_cert_file }}
+            --key-file {{ etcd_peer_key_file }}
+            --ca-file {{ etcd_peer_ca_file }}
+            --endpoint {{ etcd_peer_url_scheme }}://{{ etcd_peer }}:{{ etcd_client_port }} member update {{ __etcd_first_member_id }} {{ etcd_peer_url_scheme }}://{{ etcd_ip }}:{{ etcd_peer_port }}

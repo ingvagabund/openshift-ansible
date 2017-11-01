@@ -83,3 +83,6 @@
 - name: Display location of etcd backup
   debug:
     msg: "Etcd backup created in {{ l_etcd_backup_dir }}"
+
+- set_fact:
+    r_etcd_backup_dir: "{{ l_etcd_backup_dir }}"

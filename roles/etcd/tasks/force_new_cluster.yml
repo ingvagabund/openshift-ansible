@@ -1,0 +1,2 @@
+---
+- include: auxiliary/force_new_cluster.yml

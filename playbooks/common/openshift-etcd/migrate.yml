@@ -79,6 +79,28 @@
     vars:
       r_etcd_common_etcd_runtime: "{{ openshift.common.etcd_runtime }}"
 
+- name: Gather facts
+  hosts: oo_etcd_to_migrate[0]
+  roles:
+  - openshift_etcd_facts
+  post_tasks:
+  - set_fact:
+      etcd_hostname: "{{ etcd_hostname }}"
+      etcd_ip: "{{ etcd_ip }}"
+
+- name: Force new 1-member etcd cluster
+  hosts: oo_etcd_to_migrate[0]
+  tasks:
+  - include_role:
+      name: etcd
+      tasks_from: force_new_cluster
+    vars:
+      r_etcd_common_embedded_etcd: "{{ groups.oo_etcd_to_config | default([]) | length == 0 }}"
+      r_etcd_common_etcd_runtime: "{{ openshift.common.etcd_runtime }}"
+      etcd_peer: "{{ openshift.common.ip }}"
+      etcd_url_scheme: "https"
+      etcd_peer_url_scheme: "https"
+
 - name: Migrate data on first etcd
   hosts: oo_etcd_to_migrate[0]
   gather_facts: no
@@ -88,6 +110,20 @@
       tasks_from: migrate
     vars:
       r_etcd_common_embedded_etcd: "{{ groups.oo_etcd_to_config | default([]) | length == 0 }}"
+      r_etcd_common_etcd_runtime: "{{ openshift.common.etcd_runtime }}"
+      etcd_peer: "{{ openshift.common.ip }}"
+      etcd_url_scheme: "https"
+      etcd_peer_url_scheme: "https"
+
+- name: Force new v3 1-member etcd cluster
+  hosts: oo_etcd_to_migrate[0]
+  tasks:
+  - include_role:
+      name: etcd
+      tasks_from: force_new_v3_cluster
+    vars:
+      r_etcd_common_embedded_etcd: "{{ groups.oo_etcd_to_config | default([]) | length == 0 }}"
+      r_etcd_common_etcd_runtime: "{{ openshift.common.etcd_runtime }}"
       etcd_peer: "{{ openshift.common.ip }}"
       etcd_url_scheme: "https"
       etcd_peer_url_scheme: "https"
@@ -104,6 +140,7 @@
       etcd_peer: "{{ openshift.common.ip }}"
       etcd_url_scheme: "https"
       etcd_peer_url_scheme: "https"
+
   - name: Add etcd hosts
     delegate_to: localhost
     add_host:
@@ -113,6 +150,7 @@
       ansible_become: "{{ g_sudo | default(omit) }}"
     with_items: "{{ groups.oo_etcd_to_migrate[1:] | default([]) }}"
     changed_when: no
+
   - name: Set success
     set_fact:
       r_etcd_migrate_success: true

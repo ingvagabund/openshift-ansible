@@ -1,0 +1,76 @@
+---
+- name: Generate v3 snapshot
+  command: >
+    etcdctl --cert {{ etcd_peer_cert_file }}
+            --key {{ etcd_peer_key_file }}
+            --cacert {{ etcd_peer_ca_file }}
+            --endpoints '{{ etcd_peer_url_scheme }}://{{ etcd_peer }}:{{ etcd_client_port }}' snapshot save /var/lib/etcd/snapshot.db
+  environment:
+    ETCDCTL_API: 3
+  register: snapshot_save_result
+
+- debug:
+    msg: "snapshot_save_result: {{ snapshot_save_result }}"
+
+# - name: Fail if the snapshot was not created successfully
+#   fail:
+#     msg: "Unable to create a snapshot"
+#   when: snapshot_save_result
+
+- name: Stop etcd
+  systemd:
+    name: "{{ etcd_service }}"
+    state: stopped
+
+# Remove the current etcd data
+- include: ../auxiliary/clean_data.yml
+
+- set_fact:
+    __ts: "member-recovery-{{ lookup('pipe', 'date +%Y%m%d%H%M%S') }}"
+
+# And replace them with the migrated backup
+- name: Restore 1-node cluster from the snapshot
+  command: >
+    etcdctl --cert {{ etcd_peer_cert_file }}
+            --key {{ etcd_peer_key_file }}
+            --cacert {{ etcd_peer_ca_file }}
+            --endpoints '{{ etcd_peer_url_scheme }}://{{ etcd_peer }}:{{ etcd_client_port }}' snapshot restore {{ etcd_data_dir }}/snapshot.db
+            --initial-cluster {{ etcd_hostname }}={{ etcd_peer_url_scheme }}://{{ etcd_peer }}:{{ etcd_peer_port }}
+            --initial-cluster-token {{ etcd_initial_cluster_token }}
+            --initial-advertise-peer-urls {{ etcd_peer_url_scheme }}://{{ etcd_peer }}:{{ etcd_peer_port }}
+            --name {{ etcd_hostname }}
+            --data-dir {{ etcd_data_dir }}/{{ __ts }}
+  environment:
+    ETCDCTL_API: 3
+  register: out
+
+# And replace them with the migrated backup
+- name: Promote migrated backup dir to the etcd data dir
+  command: >
+    mv {{ etcd_data_dir }}/{{ __ts }}/member {{ etcd_data_dir }}
+
+- name: Remove recovery directory
+  file:
+    path: "{{ etcd_data_dir }}/{{ __ts }}"
+    state: absent
+
+- name: Set etcd group for the etcd data directory
+  command: >
+    chown -R etcd:etcd "{{ etcd_data_dir }}/member"
+
+# - name: Set ETCD_INITIAL_CLUSTER to a single peer
+#   lineinfile:
+#     line: "ETCD_INITIAL_CLUSTER={{ etcd_hostname }}={{ etcd_peer_url_scheme }}://{{ etcd_peer }}:{{ etcd_peer_port }}"
+#     dest: /etc/etcd/etcd.conf
+#     backup: true
+
+# - name: Set ETCD_INITIAL_CLUSTER_STATE to a new
+#   lineinfile:
+#     line: "ETCD_INITIAL_CLUSTER_STATE=new"
+#     dest: /etc/etcd/etcd.conf
+#     backup: true
+
+- name: Start etcd
+  systemd:
+    name: "{{ etcd_service }}"
+    state: started

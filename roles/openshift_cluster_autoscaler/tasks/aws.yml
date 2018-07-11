@@ -1,6 +1,11 @@
 ---
 - when: openshift_cluster_autoscaler_cloud_provider == 'aws'
   block:
+  - name: Check the AWS credentials are set
+    fail:
+      msg: "openshift_cluster_autoscaler_aws_key and/or openshift_cluster_autoscaler_aws_secret_key are not set"
+    when: openshift_cluster_autoscaler_aws_secret_key is undefined or openshift_cluster_autoscaler_aws_secret_key == "" or openshift_cluster_autoscaler_aws_secret_key is undefined or openshift_cluster_autoscaler_aws_secret_key == ""
+
   - name: laydown the aws-credentials
     template:
       src: aws-creds.j2

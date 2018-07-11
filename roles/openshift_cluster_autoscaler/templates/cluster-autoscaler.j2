@@ -29,6 +29,15 @@ spec:
 {% if openshift_cluster_autoscaler_scale_down_delay is defined %}
         - --scale-down-delay={{ openshift_cluster_autoscaler_scale_down_delay }}
 {% endif %}
+{% if openshift_cluster_autoscaler_scale_down_delay_after_failure is defined %}
+        - --scale-down-delay-after-failure={{ openshift_cluster_autoscaler_scale_down_delay_after_failure }}
+{% endif %}
+{% if openshift_cluster_autoscaler_scale_down_unneeded_timeout is defined %}
+        - --scale-down-unneeded-time={{ openshift_cluster_autoscaler_scale_down_unneeded_timeout }}
+{% endif %}
+{% if openshift_cluster_autoscaler_scale_down_delay_after_add is defined %}
+        - --scale-down-delay-after-add={{ openshift_cluster_autoscaler_scale_down_delay_after_add }}
+{% endif %}
         - --cloud-provider={{ openshift_cluster_autoscaler_cloud_provider }}
 {% for group in openshift_cluster_autoscaler_node_groups %}
         - --nodes={{ group.min }}:{{ group.max }}:{{ group.name }}

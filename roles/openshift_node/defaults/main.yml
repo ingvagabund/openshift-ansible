@@ -65,6 +65,8 @@ default_r_openshift_node_image_prep_packages:
 - nfs-utils
 - iscsi-initiator-utils
 - ceph-common
+- cifs-utils    # requested by Azure
+- samba-common  # requested by Azure
 r_openshift_node_image_prep_packages: "{{ default_r_openshift_node_image_prep_packages | union(openshift_node_image_prep_packages | default([])) }}"
 
 r_openshift_node_os_firewall_deny: []
